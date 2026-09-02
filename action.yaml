@@ -1,0 +1,168 @@
+name: terraform-plan
+description: Create a Terraform plan and post it to the pull request for review
+author: 'step-security'
+
+inputs:
+  # --- what to plan ---
+  path:
+    description: Directory holding the root module to plan. Defaults to the workspace root.
+    required: false
+    default: "."
+  workspace:
+    description: >-
+      Workspace to select before planning. Selection is skipped for backends that
+      take the workspace from the configuration instead.
+    required: false
+    default: "default"
+  label:
+    description: >-
+      Name for the environment this configuration manages, shown in the pull
+      request comment in place of the path. The apply action must be given the
+      same label, since it forms part of how the comment is identified.
+    required: false
+    default: ""
+
+  # --- variables ---
+  # Both are materialised as auto-loaded tfvars files inside the module, so they
+  # apply to every command. `variables` is written last and therefore wins.
+  variables:
+    description: >-
+      Variable definitions in Terraform syntax, as they would appear in a tfvars
+      file. Overrides anything set by `var_file`.
+    required: false
+  var_file:
+    description: >-
+      Paths to tfvars files, one per line, relative to the workspace. A path that
+      does not exist fails the job rather than being skipped.
+    required: false
+
+  # --- backend ---
+  backend_config:
+    description: >-
+      Backend settings as `key=value`, one per line. Applied after
+      `backend_config_file`, so these take precedence.
+    required: false
+    default: ""
+  backend_config_file:
+    description: >-
+      Paths to backend config files, one per line, relative to the workspace.
+      A path that does not exist fails the job.
+    required: false
+    default: ""
+
+  # --- shaping the plan ---
+  # These change what the plan contains, so they form part of how the comment is
+  # identified. An apply must be given the same values, or it will not find this
+  # plan.
+  replace:
+    description: >-
+      Resource addresses to plan for replacement rather than update, one per
+      line.
+    required: false
+    default: ""
+  target:
+    description: >-
+      Resource addresses to limit the plan to, one per line. Their dependencies
+      are included.
+    required: false
+    default: ""
+  destroy:
+    description: >-
+      Set to `true` to plan the destruction of everything the module manages.
+      Only the exact value `true` enables it.
+    required: false
+    default: "false"
+  refresh:
+    description: >-
+      Set to `false` to skip reconciling state with real resources before
+      planning. Faster, at the cost of planning against state that may be stale.
+    required: false
+    default: "true"
+
+  # --- the comment ---
+  add_github_comment:
+    description: >-
+      Whether to post the plan to the pull request, and how.
+
+      `true` keeps one comment per configuration, edited in place as the plan
+      changes. `changes-only` does the same but never creates a comment for a
+      plan with no changes, though it will update one that already exists.
+      `always-new` supersedes the previous comment and posts a replacement, so
+      the newest plan is the newest comment. `false` posts nothing.
+
+      Requires `GITHUB_TOKEN` unless set to `false`. Only runs triggered by a
+      pull request related event can comment; anything else is skipped with a
+      note in the log.
+    required: false
+    default: "true"
+
+  # --- execution ---
+  parallelism:
+    description: Maximum concurrent operations. Zero leaves the limit to Terraform.
+    required: false
+    default: "0"
+
+outputs:
+  changes:
+    description: >-
+      `true` when the plan has changes to apply, `false` when it does not. Set
+      whenever the plan succeeded, so it can gate a follow-up step.
+  plan_path:
+    description: >-
+      Workspace-relative path to the saved plan file. This is what the apply
+      action accepts as its `plan_path` input. Not set for backends that cannot
+      save a plan, such as `remote`.
+  json_plan_path:
+    description: >-
+      Workspace-relative path to the plan in Terraform's JSON format. For plans
+      that ran remotely this is fetched from the Terraform Cloud API, and is only
+      set if that succeeded. The file holds the plan in full, including sensitive
+      values, so treat it accordingly.
+  text_plan_path:
+    description: >-
+      Workspace-relative path to the plan as text. This is the text the comment
+      shows and the text an apply compares against.
+  to_add:
+    description: Number of resources the plan would create. Set only when there are changes.
+  to_change:
+    description: Number of resources the plan would update in place. Set only when there are changes.
+  to_destroy:
+    description: Number of resources the plan would destroy. Set only when there are changes.
+  to_move:
+    description: >-
+      Number of resources the plan would move. Set only when there are changes.
+      Counted from the individual move lines when Terraform omits them from the
+      summary, which some versions do.
+  to_import:
+    description: Number of resources the plan would import. Set only when there are changes.
+  run_id:
+    description: >-
+      Identifier of the remote run, set only when the module uses the `remote` or
+      `cloud` backend in remote execution mode.
+  failure_reason:
+    description: >-
+      Set to `state-locked` when the plan failed because the state lock was
+      already held. Left unset for any other failure, so it distinguishes a
+      transient lock from a broken configuration.
+  failure-reason:
+    description: >-
+      Hyphenated spelling of `failure_reason`, carrying the same value. Both are
+      published so either name can be referenced.
+  lock_info:
+    description: >-
+      Set when `failure_reason` is `state-locked`. A JSON object holding whatever
+      the state backend reported about the lock, typically its `ID`, `Path`,
+      `Operation`, `Who`, `Version` and `Created` fields. May be an empty object
+      when the backend reported no detail.
+  lock-info:
+    description: >-
+      Hyphenated spelling of `lock_info`, carrying the same value. Both are
+      published so either name can be referenced.
+
+runs:
+  using: node24
+  main: dist/index.js
+
+branding:
+  icon: globe
+  color: purple
