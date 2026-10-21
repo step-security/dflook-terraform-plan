@@ -8,6 +8,7 @@ import {
   findPullRequest,
   formatPlanText,
   getSensitiveVariables,
+  jobUrl,
   planCommentHeaders,
   planHighlighting,
   planSummaryLine,
@@ -210,13 +211,14 @@ export function jobRef(): string | undefined {
   return `${repo}/${process.env.GITHUB_JOB ?? ''}`
 }
 
-/** Link back to the run, for the comment status line. */
+/**
+ * Link back to the run, for the comment status line.
+ *
+ * Delegates so that a workflow executed on Depot links to the job there rather
+ * than to a GitHub run that does not exist.
+ */
 export function runUrl(): string | undefined {
-  const server = process.env.GITHUB_SERVER_URL
-  const repo = process.env.GITHUB_REPOSITORY
-  const runId = process.env.GITHUB_RUN_ID
-  if (!server || !repo || !runId) return undefined
-  return `${server}/${repo}/actions/runs/${runId}`
+  return jobUrl()
 }
 
 /** Reports a comment failure without failing a plan that succeeded. */
